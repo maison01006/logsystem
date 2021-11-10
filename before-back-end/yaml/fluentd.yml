@@ -1,0 +1,108 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fluentd-deployment
+  labels:
+    app: fluentd
+spec:
+  # 복제본 수
+  replicas: 1
+  # 라벨 셀렉터
+  selector:
+    matchLabels:
+      app: fluentd
+  # 포드 템플릿
+  template:
+    metadata:
+      labels:
+        app: fluentd
+    spec:
+      initContainers:
+        - name: config-fluentd
+          image: busybox
+          imagePullPolicy: IfNotPresent
+          command: ["/bin/sh", "-c"]
+          args:
+            - cp /fluentd/etc2/fluent.conf /fluentd/etc/fluent.conf;
+          volumeMounts:
+            - name: config-path
+              mountPath: /fluentd/etc
+            - name: config-source
+              mountPath: /fluentd/etc2
+      containers:
+        - name: fluentd
+          image: maison01006/fluentd:1.8
+          #          command: ["/bin/sh", "-c"]
+          #          args:
+          #            - gem install fluent-plugin-elasticsearch --no-document --version 4.3.3
+          volumeMounts:
+            - name: config-path
+              mountPath: /fluentd/etc
+          ports:
+            - containerPort: 24224
+            - containerPort: 8888
+      volumes:
+        - name: config-source
+          configMap:
+            name: fluentd-config
+        - name: config-path
+          emptyDir: {}
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: fluentd
+  name: fluentd-svc
+  namespace: default
+spec:
+  ports:
+    - name: fluentd-forward
+      port: 24224
+      protocol: TCP
+      targetPort: 24224
+    - name: fluentd-health
+      port: 8888
+      protocol: TCP
+      targetPort: 8888
+  selector:
+    app: fluentd
+  type: LoadBalancer
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluentd-config
+  namespace: default
+  labels:
+    app: fluentd
+data:
+  fluent.conf: |
+    <match es.**>
+      @type copy
+      <store>
+        @type stdout
+      </store>
+      <store>
+        @type elasticsearch
+        host elasticsearch.default.svc.cluster.local
+        port 9200
+        logstash_format true
+      </store>
+    </match>
+    <match health*>
+      @type null
+    </match>
+    <source>
+      @type http
+      port 8888
+    </source>
+    <source>
+      @type forward
+      port 24224
+      bind 0.0.0.0
+      @id input_forward
+      tag es.log
+    </source>
