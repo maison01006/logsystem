@@ -11,11 +11,11 @@
  ``` bash
  docker run -d -v 로그위치:/home/ubuntu --name 별명 이미지이름
  ```
----
+
 ### Fluentd-in-docker 
  - 메인서버 안에서 돌아가는 Fluentd
  - 기본적인 Fluentd에 ElasticSearch 플러그인만 설치 하였다.
----
+
 ### test.java
  - 5초마다 10명의 아이들의 로그를 100개 출력한다.
  - 형식
